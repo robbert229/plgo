@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/format"
 	"go/parser"
 	"go/token"
@@ -33,14 +32,14 @@ type ModuleWriter struct {
 func NewModuleWriter(packagePath string) (*ModuleWriter, error) {
 	fset := token.NewFileSet()
 	// skip _test files in current package
-	filtertestfiles := func(fi os.FileInfo) bool {
+	filterTestFiles := func(fi os.FileInfo) bool {
 		if strings.HasSuffix(fi.Name(), "_test.go") {
 			return false
 		}
 		return true
 	}
 
-	f, err := parser.ParseDir(fset, packagePath, filtertestfiles, parser.ParseComments)
+	f, err := parser.ParseDir(fset, packagePath, filterTestFiles, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot parse package: %w", err)
 	}
@@ -79,7 +78,7 @@ func (mw *ModuleWriter) WriteModule() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = mw.writeplgo(tempPackagePath)
+	err = mw.writePlGo(tempPackagePath)
 	if err != nil {
 		return "", err
 	}
@@ -97,57 +96,41 @@ func (mw *ModuleWriter) writeUserPackage(tempPackagePath string) error {
 		return fmt.Errorf("Cannot write file tempdir: %w", err)
 	}
 	if err = format.Node(packageFile, mw.fset, ast.MergePackageFiles(mw.packageAst, ast.FilterFuncDuplicates)); err != nil {
-		return fmt.Errorf("Cannot format package %w", err)
+		return fmt.Errorf("cannot format package %w", err)
 	}
 	err = packageFile.Close()
 	if err != nil {
-		return fmt.Errorf("Cannot write file tempdir: %w", err)
+		return fmt.Errorf("cannot write file tempdir: %w", err)
 	}
 	return nil
 }
 
-func readPlGoSource() ([]byte, error) {
-	goPath := os.Getenv("GOPATH")
-	if goPath == "" {
-		goPath = build.Default.GOPATH // Go 1.8 and later have a default GOPATH
-	}
-	for _, goPathElement := range filepath.SplitList(goPath) {
-		rv, err := ioutil.ReadFile(filepath.Join(goPathElement, "src", "gitlab.com", "microo8", "plgo", "pl.go"))
-		if err == nil {
-			return rv, nil
-		} else if os.IsNotExist(err) {
-			continue // try the next
-		} else {
-			return nil, fmt.Errorf("Cannot read plgo package: %w", err)
-		}
-	}
-	return nil, fmt.Errorf("Package gitlab.com/microo8/plgo not installed\nplease install it with: go get -u gitlab.com/microo8/plgo/plgo")
-}
-
-func (mw *ModuleWriter) writeplgo(tempPackagePath string) error {
-	plgoSourceBin, err := readPlGoSource()
+func (mw *ModuleWriter) writePlGo(tempPackagePath string) error {
+	plGoSourceBin, err := readPlGoSource()
 	if err != nil {
 		return err
 	}
-	plgoSource := string(plgoSourceBin)
-	plgoSource = "package main\n\n" + plgoSource[12:]
+
+	plGoSource := string(plGoSourceBin)
+	plGoSource = "package main\n\n" + plGoSource[12:]
 	postgresIncludeDir, err := exec.Command("pg_config", "--includedir-server").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Cannot run pg_config: %w", err)
+		return fmt.Errorf("cannot run pg_config: %w", err)
 	}
-	postgresIncludeStr := getcorrectpath(string(postgresIncludeDir)) // corrects 8.3 filenames on windows
-	plgoSource = strings.Replace(plgoSource, "/usr/include/postgresql/server", postgresIncludeStr, 1)
 
-	addOtherIncludesAndLDFLAGS(&plgoSource, postgresIncludeStr) // on mingw windows workarounds
+	postgresIncludeStr := getCorrectPath(string(postgresIncludeDir)) // corrects 8.3 filenames on windows
+	plGoSource = strings.Replace(plGoSource, "/usr/include/postgresql/server", postgresIncludeStr, 1)
+
+	addOtherIncludesAndLDFLAGS(&plGoSource, postgresIncludeStr) // on mingw windows workarounds
 
 	var funcdec string
 	for _, f := range mw.functions {
 		funcdec += f.FuncDec()
 	}
-	plgoSource = strings.Replace(plgoSource, "//{funcdec}", funcdec, 1)
-	err = ioutil.WriteFile(filepath.Join(tempPackagePath, "pl.go"), []byte(plgoSource), 0644)
+	plGoSource = strings.Replace(plGoSource, "//{funcdec}", funcdec, 1)
+	err = ioutil.WriteFile(filepath.Join(tempPackagePath, "pl.go"), []byte(plGoSource), 0644)
 	if err != nil {
-		return fmt.Errorf("Cannot write file tempdir: %w", err)
+		return fmt.Errorf("cannot write file tempdir: %w", err)
 	}
 	return nil
 }

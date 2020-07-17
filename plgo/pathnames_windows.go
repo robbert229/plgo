@@ -13,8 +13,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// getcorrectpath works around 8.3 name returned by pg_config --includedir-server.
-func getcorrectpath(p string) string {
+// getCorrectPath works around 8.3 name returned by pg_config --includedir-server.
+func getCorrectPath(p string) string {
 	repl := p
 	if p[len(p)-2:] == "\r\n" {
 		repl = p[:len(p)-2]
@@ -22,7 +22,7 @@ func getcorrectpath(p string) string {
 
 	ret, err := shortToLongPath(repl)
 	if err != nil {
-		panic("in getcorrectpath: " + err.Error() + "\"" + repl + "\"")
+		panic("in getCorrectPath: " + err.Error() + "\"" + repl + "\"")
 	}
 	return ret
 }

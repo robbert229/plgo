@@ -12,34 +12,43 @@ import (
 //Meh prints out message to error elog
 func Meh() {
 	logger := plgo.NewErrorLogger("", log.Ltime|log.Lshortfile)
-	logger.Println("meh")
+	logger.Println("fizz buzz!")
 }
 
 //ConcatAll concatenates all values of an column in a given table
 func ConcatAll(tableName, colName string) string {
 	logger := plgo.NewErrorLogger("", log.Ltime|log.Lshortfile)
+
 	db, err := plgo.Open()
 	if err != nil {
 		logger.Fatalf("Cannot open DB: %s", err)
 	}
 	defer db.Close()
+
 	query := "select " + colName + " from " + tableName
 	stmt, err := db.Prepare(query, nil)
 	if err != nil {
 		logger.Fatalf("Cannot prepare query statement (%s): %s", query, err)
 	}
+
 	rows, err := stmt.Query()
 	if err != nil {
 		logger.Fatalf("Query (%s) error: %s", query, err)
 	}
+
 	var ret string
 	for rows.Next() {
 		var val string
+
 		cols, err := rows.Columns()
 		if err != nil {
 			logger.Fatalln("Cannot get columns", err)
 		}
-		logger.Println(cols)
+
+		// logger.Println(cols)
+
+		_ = cols
+
 		err = rows.Scan(&val)
 		if err != nil {
 			logger.Fatalln("Cannot scan value", err)
